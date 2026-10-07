@@ -19,6 +19,8 @@
     --neon-soft: rgba(61, 139, 255, 0.16);
     --amber: #F2A03D;       /* prices and rewards — the tiger's fur */
     --ember: #FF5B3A;       /* expired */
+    --frost: #8FD3FF;       /* frozen (paused) subscription */
+    --ok: #3DDC84;          /* servers work */
     --ice: #EAF1FF;         /* text */
     --steel: #8A9BC4;       /* secondary text */
     --display: 'Unbounded', 'Arial Black', system-ui, sans-serif;
@@ -74,6 +76,27 @@
     object-fit: cover; border: 2px solid var(--deep);
   }
   .emblem.off img { filter: grayscale(0.85) brightness(0.7); }
+  .emblem.frozen img { filter: saturate(0.3) brightness(0.85) contrast(1.05); }
+  .emblem.frozen::after { /* a thin frost veil over the tiger */
+    content: ''; position: absolute; inset: 30px; border-radius: 50%;
+    background: radial-gradient(circle at 50% 35%, rgba(143, 211, 255, 0.05), rgba(143, 211, 255, 0.28));
+  }
+  .srvrow { text-align: center; margin: 12px 0 0; }
+  .srv { display: inline-flex; align-items: center; gap: 8px; padding: 6px 12px; border-radius: 999px;
+         background: var(--deep); border: 1px solid var(--line); font-size: 13px; color: var(--steel); }
+  .srv i { width: 8px; height: 8px; border-radius: 50%; background: var(--ok); box-shadow: 0 0 8px var(--ok); }
+  .srv.bad i { background: var(--amber); box-shadow: 0 0 8px var(--amber); }
+  .srv.bad { color: var(--amber); }
+  .card { display: grid; grid-template-columns: auto 1fr; gap: 2px 14px; align-items: center; margin: 22px 0 0;
+          padding: 16px 18px; border-radius: 22px; background: var(--panel); border: 1px solid var(--line); }
+  .card .ico { grid-row: 1 / span 2; font-size: 30px; line-height: 1; }
+  .card b { font: 700 16px/1.3 var(--display); letter-spacing: -0.01em; }
+  .card span { color: var(--steel); font-size: 14px; line-height: 1.4; }
+  .card .btn { grid-column: 1 / -1; margin-top: 12px; min-height: 46px; }
+  .card.hot { border-color: rgba(242, 160, 61, 0.55); background: linear-gradient(160deg, rgba(242, 160, 61, 0.14), var(--panel) 60%); }
+  .card.hot b { color: var(--amber); }
+  .tools { margin-top: 12px; }
+  .tools .btn { min-height: 44px; font-size: 15px; }
   .state { text-align: center; font: 600 17px/1.3 var(--body); margin: 8px 0 2px; color: var(--ring, var(--neon)); }
   .days { text-align: center; margin: 0; }
   .days .num { font: 800 64px/1 var(--display); letter-spacing: -0.03em; }
@@ -232,7 +255,7 @@
       pl: [['d30', '1 месяц', 30, 119, 100, 3], ['d90', '3 месяца', 90, 299, 100, 3], ['d180', '6 месяцев', 180, 549, 100, 3], ['d365', '1 год', 365, 999, 100, 3]],
       dc: null,
       r: { c: 4, w: 0, l: [[1, 2], [3, 7], [6, 30], [13, 90], [20, 180]] },
-      tr: 0
+      tr: 0, fz: 1, rd: 1, wh: [1, 0, 0], ss: 1, sa: now
     };
   }
   if (data.b) BOT = data.b;
@@ -296,7 +319,7 @@
     var s = data.s;
     var now = Date.now() / 1000;
     var C = 2 * Math.PI * 104;
-    var frac = 0, ring = 'var(--neon)', state = '', big = '', unit = '', until = '', off = false, actions = '';
+    var frac = 0, ring = 'var(--neon)', state = '', big = '', unit = '', until = '', off = false, frozen = false, actions = '';
     if (data.nodata) {
       off = true;
       state = 'Данные не загрузились';
@@ -313,6 +336,21 @@
       actions = data.tr
         ? '<button class="btn btn-primary" data-bot="trial">Попробовать бесплатно</button><button class="btn btn-ghost" data-tab-go="plans">Выбрать тариф</button>'
         : '<button class="btn btn-primary" data-tab-go="plans">Выбрать тариф</button>';
+    } else if (s.z) {
+      // ❄️ paused: the days are kept, the countdown stands still
+      frozen = true;
+      ring = 'var(--frost)';
+      state = 'Подписка заморожена';
+      var keep = Math.max(0, s.zr || 0);
+      var kd = Math.floor(keep / 86400);
+      if (kd >= 1) { big = String(kd); unit = plural(kd, 'день', 'дня', 'дней'); }
+      else { var kh = Math.max(1, Math.floor(keep / 3600)); big = String(kh); unit = plural(kh, 'час', 'часа', 'часов'); }
+      frac = Math.max(0.04, Math.min(1, keep / (30 * 86400)));
+      until = s.zu && s.zu <= now
+        ? 'Срок заморозки прошёл — подписка размораживается. Откройте бота, чтобы обновить данные.'
+        : 'Дни сохранены, отсчёт на паузе. Разморозится сама ' + (s.zu ? shortDate(s.zu) : 'позже') + '.';
+      actions = '<button class="btn btn-primary" data-bot="unfreeze">Разморозить сейчас</button>' +
+        '<p class="muted small" style="text-align:center;margin:2px 0 0">Пока подписка заморожена, VPN не работает.</p>';
     } else {
       var left = s.e - now;
       var total = Math.max(s.e - (s.f || s.e - 30 * 86400), 3600);
@@ -351,6 +389,31 @@
       ticks += '<line x1="' + (118 + r1 * Math.cos(a)).toFixed(1) + '" y1="' + (118 + r1 * Math.sin(a)).toFixed(1) +
         '" x2="' + (118 + r2 * Math.cos(a)).toFixed(1) + '" y2="' + (118 + r2 * Math.sin(a)).toFixed(1) + '"/>';
     }
+    var tools = [];
+    if (data.fz && s && !s.z) tools.push('<button class="btn btn-ghost" data-bot="freeze">❄️ Заморозить</button>');
+    if (data.rd && s && !s.z) tools.push('<button class="btn btn-ghost" data-bot="devreset">🔄 Сброс устройств</button>');
+    var toolsHtml = tools.length ? '<div class="tools ' + (tools.length === 2 ? 'btn-row' : 'stack') + '">' + tools.join('') + '</div>' : '';
+    var wheel = '';
+    var wh = data.wh;
+    var spinAt = wh && wh[1] > now ? wh[1] : 0; // the data may be a few days old: a past date means "now"
+    if (wh && !(s && s.z) && !data.nodata) {
+      if (wh[2] > 0) {
+        wheel = '<div class="card hot"><span class="ico" aria-hidden="true">🎁</span><b>Выигрыш ждёт: +' + esc(wh[2]) + ' ' + plural(wh[2], 'день', 'дня', 'дней') + '</b>' +
+          '<span>Добавим к подписке одним нажатием.</span><button class="btn btn-amber" data-bot="claim">Забрать</button></div>';
+      } else if (wh[0] && !spinAt) {
+        wheel = '<div class="card hot"><span class="ico" aria-hidden="true">🎰</span><b>Колесо удачи</b>' +
+          '<span>Бесплатная попытка ждёт. Призы — до +7 дней подписки и скидки.</span><button class="btn btn-amber" data-bot="spin">Крутить колесо</button></div>';
+      } else if (wh[0]) {
+        wheel = '<div class="card"><span class="ico" aria-hidden="true">🎰</span><b>Колесо удачи</b>' +
+          '<span>Следующая попытка — ' + esc(shortDate(spinAt)) + '.</span></div>';
+      } else {
+        wheel = '<div class="card"><span class="ico" aria-hidden="true">🎰</span><b>Колесо удачи</b>' +
+          '<span>Раз в неделю для владельцев подписки — до +7 дней бесплатно.</span></div>';
+      }
+    }
+    var srvFresh = data.sa && now - data.sa < 45 * 60; // the status is shown only while it is recent
+    var srv = !srvFresh ? '' : data.ss === 1 ? '<div class="srvrow"><span class="srv"><i></i>Серверы работают</span></div>'
+      : data.ss === 0 ? '<div class="srvrow"><span class="srv bad"><i></i>Есть перебои — уже чиним</span></div>' : '';
     var facts = '';
     if (s) {
       facts = '<dl class="facts">' +
@@ -361,7 +424,8 @@
     }
     document.getElementById('v-home').innerHTML =
       '<div class="wordmark">Ryzen VPN<small>' + (inTelegram && tg.initDataUnsafe && tg.initDataUnsafe.user ? esc(tg.initDataUnsafe.user.first_name || '') : '') + '</small></div>' +
-      '<div class="emblem' + (off ? ' off' : '') + '" style="--ring:' + ring + '">' +
+      srv +
+      '<div class="emblem' + (off ? ' off' : '') + (frozen ? ' frozen' : '') + '" style="--ring:' + ring + '">' +
         '<svg viewBox="0 0 236 236" aria-hidden="true">' +
           '<g class="ticks" stroke-width="1.4">' + ticks + '</g>' +
           '<circle class="track" cx="118" cy="118" r="104" fill="none" stroke-width="7"/>' +
@@ -373,7 +437,9 @@
       (off ? '' : '<p class="days"><span class="num">' + esc(big) + '</span><span class="unit">' + esc(unit) + '</span></p>') +
       '<p class="until">' + esc(until) + '</p>' +
       '<div class="stack">' + actions + '</div>' +
+      wheel +
       facts +
+      toolsHtml +
       (demo ? '<p class="demo">Это пример. Откройте приложение в Telegram кнопкой внизу слева в чате с ботом — здесь появится ваша подписка.</p>' : '');
     // The one orchestrated moment: the ring fills up to the days left.
     var arc = document.getElementById('arc');
@@ -485,6 +551,8 @@
       '</ol>' +
       (device === 'ios' ? '<div class="hint">В российском App Store приложения Happ нет. Смените регион Apple ID — бот покажет, как это сделать по шагам.' +
         '<button class="btn btn-ghost" style="margin-top:12px;min-height:44px" data-bot="guide_region">Как сменить регион</button></div>' : '') +
+      (data.rd && data.s ? '<div class="hint">Сменили телефон и упёрлись в лимит устройств? Сбросьте список и подключитесь заново — ссылка не изменится.' +
+        '<button class="btn btn-ghost" style="margin-top:12px;min-height:44px" data-bot="devreset">Сбросить устройства</button></div>' : '') +
       '<div class="stack">' +
         '<button class="btn btn-ghost" data-url="https://t.me/' + esc(SUPPORT) + '">Написать в поддержку</button>' +
         '<button class="btn btn-ghost" data-bot="docs">Документы</button>' +
