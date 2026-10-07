@@ -261,7 +261,7 @@
         ['f30', 'Семья · 1 месяц', 30, 249, 0, 10, 1], ['f90', 'Семья · 3 месяца', 90, 649, 0, 10, 1], ['f180', 'Семья · 6 месяцев', 180, 1149, 0, 10, 1], ['f365', 'Семья · 1 год', 365, 2049, 0, 10, 1]],
       dc: null,
       r: { c: 4, w: 0, l: [[1, 2], [3, 7], [6, 30], [13, 90], [20, 180]] },
-      tr: 0, fz: 1, rd: 1, wh: [1, 0, 0], ss: 1, sa: now
+      tr: 0, fz: 1, rd: 1, wh: [1, 0, 0], ss: 1, sa: now, mb: 1
     };
   }
   if (data.b) BOT = data.b;
@@ -574,7 +574,10 @@
         '<button class="btn btn-ghost" style="margin-top:12px;min-height:44px" data-bot="guide_region">Как сменить регион</button></div>' : '') +
       (data.rd && data.s ? '<div class="hint">Сменили телефон и упёрлись в лимит устройств? Сбросьте список и подключитесь заново — ссылка не изменится.' +
         '<button class="btn btn-ghost" style="margin-top:12px;min-height:44px" data-bot="devreset">Сбросить устройства</button></div>' : '') +
-      '<div class="stack">' +
+      (data.mb ? '<div class="card"><span class="ico" aria-hidden="true">🤖</span><b>Хотите такого же бота?</b>' +
+        '<span>Сделаем VPN-бота под ключ — с вашим названием, оформлением и ценами.</span>' +
+        '<button class="btn btn-ghost" data-bot="mybot">Подробнее</button></div>' : '') +
+      '<div class="stack" style="margin-top:18px">' +
         '<button class="btn btn-ghost" data-url="https://t.me/' + esc(SUPPORT) + '">Написать в поддержку</button>' +
         '<button class="btn btn-ghost" data-bot="docs">Документы</button>' +
       '</div>';
