@@ -300,7 +300,7 @@
     if (data.nodata) {
       off = true;
       state = 'Данные не загрузились';
-      until = 'Закройте приложение и откройте его снова кнопкой «📱 Открыть приложение» в меню бота.';
+      until = 'Закройте приложение, отправьте боту /start и откройте его снова кнопкой внизу слева.';
       ring = 'var(--steel)';
       actions = '<button class="btn btn-primary" data-bot="menu">Открыть меню бота</button>';
     } else if (!s) {
@@ -374,7 +374,7 @@
       '<p class="until">' + esc(until) + '</p>' +
       '<div class="stack">' + actions + '</div>' +
       facts +
-      (demo ? '<p class="demo">Это пример. Откройте приложение кнопкой в меню бота — здесь появится ваша подписка.</p>' : '');
+      (demo ? '<p class="demo">Это пример. Откройте приложение в Telegram кнопкой внизу слева в чате с ботом — здесь появится ваша подписка.</p>' : '');
     // The one orchestrated moment: the ring fills up to the days left.
     var arc = document.getElementById('arc');
     var target = (C * (1 - frac)).toFixed(1);
