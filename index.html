@@ -118,6 +118,11 @@
            background: rgba(242, 160, 61, 0.08); color: var(--amber); font-weight: 600; font-size: 15px; }
   .plans { list-style: none; margin: 0; padding: 0; border-radius: 22px; background: var(--panel); border: 1px solid var(--line); overflow: hidden; }
   .plans li + li { border-top: 1px solid var(--line); }
+  .grp { font: 700 17px/1.3 var(--display); margin: 22px 0 4px; letter-spacing: -0.01em; }
+  .grp.fam { color: var(--amber); }
+  .grp.fam::before { content: '👨‍👩‍👧 '; }
+  .plans.fam { border-color: rgba(242, 160, 61, 0.45); }
+  .plans.fam .term { color: var(--ice); }
   .plan { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 2px 12px; width: 100%;
           padding: 16px 18px; border: 0; background: transparent; text-align: left; }
   .plan .term { font: 700 20px/1.2 var(--display); letter-spacing: -0.01em; }
@@ -252,7 +257,8 @@
     data = {
       v: 1,
       s: { a: 1, t: 0, p: '1 месяц', e: now + 27 * 86400 + 5 * 3600, f: now - 3 * 86400, g: 100, d: 3 },
-      pl: [['d30', '1 месяц', 30, 119, 100, 3], ['d90', '3 месяца', 90, 299, 100, 3], ['d180', '6 месяцев', 180, 549, 100, 3], ['d365', '1 год', 365, 999, 100, 3]],
+      pl: [['d30', '1 месяц', 30, 119, 100, 3, 0], ['d90', '3 месяца', 90, 299, 100, 3, 0], ['d180', '6 месяцев', 180, 549, 100, 3, 0], ['d365', '1 год', 365, 999, 100, 3, 0],
+        ['f30', 'Семья · 1 месяц', 30, 249, 0, 10, 1], ['f90', 'Семья · 3 месяца', 90, 649, 0, 10, 1], ['f180', 'Семья · 6 месяцев', 180, 1149, 0, 10, 1], ['f365', 'Семья · 1 год', 365, 2049, 0, 10, 1]],
       dc: null,
       r: { c: 4, w: 0, l: [[1, 2], [3, 7], [6, 30], [13, 90], [20, 180]] },
       tr: 0, fz: 1, rd: 1, wh: [1, 0, 0], ss: 1, sa: now
@@ -456,31 +462,46 @@
   var giftMode = false;
   var openPlan = null;
   function renderPlans() {
-    var plans = (data.pl || []).map(function (p) { return { id: p[0], name: p[1], days: p[2], price: p[3], gb: p[4], dev: p[5] }; });
+    var all = (data.pl || []).map(function (p) { return { id: p[0], name: p[1], days: p[2], price: p[3], gb: p[4], dev: p[5], fam: p[6] === 1 }; });
     var dc = !giftMode && data.dc && data.dc[1] > Date.now() / 1000 ? { pct: data.dc[0], until: data.dc[1] } : null;
     var price = function (p) { return dc ? Math.max(1, Math.round(p.price * (100 - dc.pct) / 100)) : p.price; };
-    var bestId = null, bestPer = Infinity;
-    plans.forEach(function (p) { var per = p.price / (p.days / 30); if (plans.length > 1 && per < bestPer) { bestPer = per; bestId = p.id; } });
-    var same = plans.length && plans.every(function (p) { return p.gb === plans[0].gb && p.dev === plans[0].dev; });
-    var rows = plans.map(function (p) {
-      var months = p.days / 30;
-      var per = months >= 2 ? Math.round(price(p) / months) + ' ⭐ в месяц' : '';
-      var sub = [p.name];
-      if (per) sub.push(per);
-      if (!same) sub.push((p.gb > 0 ? p.gb + ' ГБ' : 'без лимита') + ', ' + (p.dev > 0 ? 'до ' + p.dev + ' устр.' : 'устройств без лимита'));
-      var isOpen = openPlan === p.id;
-      return '<li class="' + (isOpen ? 'open' : '') + '">' +
-        '<button class="plan" data-plan="' + esc(p.id) + '" aria-expanded="' + isOpen + '">' +
-          '<span class="term">' + esc(p.days) + ' ' + plural(p.days, 'день', 'дня', 'дней') + '</span>' +
-          '<span class="price">' + (dc ? '<s>' + esc(p.price) + ' ⭐</s>' : '') + esc(price(p)) + ' ⭐</span>' +
-          '<span class="sub">' + esc(sub.join(', ')) + (p.id === bestId ? '<span class="best">Выгоднее всего</span>' : '') + '</span>' +
-        '</button>' +
-        '<div class="buy"><div>' +
-          '<button class="btn ' + (giftMode ? 'btn-amber' : 'btn-primary') + '" data-bot="' + (giftMode ? 'gplan_' : 'plan_') + esc(p.id) + '">' +
-            (giftMode ? 'Подарить за ' : 'Оплатить ') + esc(price(p)) + ' ⭐</button>' +
-        '</div></div>' +
-      '</li>';
-    }).join('');
+    var devText = function (n) { return n > 0 ? 'до ' + n + ' ' + plural(n, 'устройства', 'устройств', 'устройств') : 'любое число устройств'; };
+    function group(plans, fam) {
+      if (!plans.length) return '';
+      var bestId = null, bestPer = Infinity;
+      plans.forEach(function (p) { var per = p.price / (p.days / 30); if (plans.length > 1 && per < bestPer) { bestPer = per; bestId = p.id; } });
+      var same = plans.every(function (p) { return p.gb === plans[0].gb && p.dev === plans[0].dev; });
+      var rows = plans.map(function (p) {
+        var months = p.days / 30;
+        var per = months >= 2 ? Math.round(price(p) / months) + ' ⭐ в месяц' : '';
+        var sub = [fam ? p.name.replace(/^Семья · /, '') : p.name];
+        if (per) sub.push(per);
+        if (!same) sub.push((p.gb > 0 ? p.gb + ' ГБ' : 'без лимита') + ', ' + (p.dev > 0 ? 'до ' + p.dev + ' устр.' : 'устройств без лимита'));
+        var isOpen = openPlan === p.id;
+        return '<li class="' + (isOpen ? 'open' : '') + '">' +
+          '<button class="plan" data-plan="' + esc(p.id) + '" aria-expanded="' + isOpen + '">' +
+            '<span class="term">' + esc(p.days) + ' ' + plural(p.days, 'день', 'дня', 'дней') + '</span>' +
+            '<span class="price">' + (dc ? '<s>' + esc(p.price) + ' ⭐</s>' : '') + esc(price(p)) + ' ⭐</span>' +
+            '<span class="sub">' + esc(sub.join(', ')) + (p.id === bestId ? '<span class="best">Выгоднее всего</span>' : '') + '</span>' +
+          '</button>' +
+          '<div class="buy"><div>' +
+            '<button class="btn ' + (giftMode ? 'btn-amber' : 'btn-primary') + '" data-bot="' + (giftMode ? 'gplan_' : 'plan_') + esc(p.id) + '">' +
+              (giftMode ? 'Подарить за ' : 'Оплатить ') + esc(price(p)) + ' ⭐</button>' +
+          '</div></div>' +
+        '</li>';
+      }).join('');
+      var inc = same
+        ? (fam ? 'До ' + devText(plans[0].dev).replace(/^до /, '') + ' и ' + (plans[0].gb > 0 ? plans[0].gb + ' ГБ трафика' : 'безлимитный трафик') +
+            '. Одна подписка на всех — отправьте ссылку близким или покажите QR-код.'
+          : 'В каждом тарифе ' + (plans[0].gb > 0 ? plans[0].gb + ' ГБ трафика на весь срок' : 'трафик без ограничений') + ' и ' + devText(plans[0].dev) + '.')
+        : (fam ? 'Одна подписка на всех — отправьте ссылку близким или покажите QR-код.' : '');
+      return (both ? '<h3 class="grp' + (fam ? ' fam' : '') + '">' + (fam ? 'Для всей семьи' : 'Личная подписка') + '</h3>' : '') +
+        (inc ? '<p class="muted small">' + inc + '</p>' : '') +
+        '<ul class="plans' + (fam ? ' fam' : '') + '">' + rows + '</ul>';
+    }
+    var own = all.filter(function (p) { return !p.fam; });
+    var fam = all.filter(function (p) { return p.fam; });
+    var both = own.length > 0 && fam.length > 0;
     document.getElementById('v-plans').innerHTML =
       '<h2>Тарифы</h2>' +
       '<div class="seg" role="group" aria-label="Для кого">' +
@@ -488,12 +509,12 @@
         '<button data-gift="1" aria-pressed="' + giftMode + '">В подарок</button>' +
       '</div>' +
       (dc ? '<p class="offer">Ваша скидка ' + esc(dc.pct) + '% действует до ' + esc(shortDate(dc.until)) + '</p>' : '') +
-      (same ? '<p class="muted small">В каждом тарифе ' + (plans[0].gb > 0 ? plans[0].gb + ' ГБ трафика на весь срок' : 'трафик без ограничений') +
-        ' и ' + (plans[0].dev > 0 ? 'до ' + plans[0].dev + ' ' + plural(plans[0].dev, 'устройства', 'устройств', 'устройств') : 'любое число устройств') + '.</p>' : '') +
-      (plans.length ? '<ul class="plans">' + rows + '</ul>' : '<p class="muted">Сейчас нет доступных тарифов. Загляните чуть позже.</p>') +
+      (all.length ? group(own, false) + group(fam, true) : '<p class="muted">Сейчас нет доступных тарифов. Загляните чуть позже.</p>') +
       '<p class="muted small" style="margin-top:14px">' +
         (giftMode ? 'После оплаты бот пришлёт ссылку — отправьте её другу, и он активирует подписку. Ссылка работает один раз.'
-                  : (data.s && data.s.a ? 'Дни и трафик прибавятся к текущей подписке, ссылка останется прежней.' : 'Ссылка подписки придёт в чат сразу после оплаты.')) +
+                  : (data.s && data.s.a ? 'Дни и трафик прибавятся к текущей подписке, ссылка останется прежней.' +
+                      (both ? ' При переходе между личной и семейной подпиской оставшиеся дни пересчитаются по стоимости.' : '')
+                    : 'Ссылка подписки придёт в чат сразу после оплаты.')) +
         ' Оплата звёздами Telegram в чате с ботом.</p>';
   }
 
