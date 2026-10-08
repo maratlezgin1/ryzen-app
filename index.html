@@ -126,6 +126,7 @@
   .plan { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 2px 12px; width: 100%;
           padding: 16px 18px; border: 0; background: transparent; text-align: left; }
   .plan .term { font: 700 20px/1.2 var(--display); letter-spacing: -0.01em; }
+  .plan .pe { margin-right: 6px; font-size: 18px; }
   .plan .sub { grid-column: 1; color: var(--steel); font-size: 14px; }
   .plan .price { grid-row: 1 / span 2; grid-column: 2; text-align: right; font: 700 20px/1.2 var(--display); color: var(--amber); }
   .plan .price s { display: block; font: 500 13px/1.2 var(--body); color: var(--steel); }
@@ -257,8 +258,8 @@
     data = {
       v: 1,
       s: { a: 1, t: 0, p: '1 месяц', e: now + 27 * 86400 + 5 * 3600, f: now - 3 * 86400, g: 100, d: 3 },
-      pl: [['d30', '1 месяц', 30, 119, 100, 3, 0], ['d90', '3 месяца', 90, 299, 100, 3, 0], ['d180', '6 месяцев', 180, 549, 100, 3, 0], ['d365', '1 год', 365, 999, 100, 3, 0],
-        ['f30', 'Семья · 1 месяц', 30, 249, 0, 10, 1], ['f90', 'Семья · 3 месяца', 90, 649, 0, 10, 1], ['f180', 'Семья · 6 месяцев', 180, 1149, 0, 10, 1], ['f365', 'Семья · 1 год', 365, 2049, 0, 10, 1]],
+      pl: [['d30', '1 месяц', 30, 149, 100, 3, 0, 1], ['d90', '3 месяца', 90, 399, 100, 3, 0, 1], ['d180', '6 месяцев', 180, 719, 100, 3, 0, 1], ['d365', '1 год', 365, 1299, 100, 3, 0, 1],
+        ['f30', 'Семья · 1 месяц', 30, 249, 0, 10, 1, 1], ['f90', 'Семья · 3 месяца', 90, 649, 0, 10, 1, 1], ['f180', 'Семья · 6 месяцев', 180, 1149, 0, 10, 1, 1], ['f365', 'Семья · 1 год', 365, 2049, 0, 10, 1, 1]],
       dc: null,
       r: { c: 4, w: 0, l: [[1, 2], [3, 7], [6, 30], [13, 90], [20, 180]] },
       tr: 0, fz: 1, rd: 1, wh: [1, 0, 0], ss: 1, sa: now, mb: 1
@@ -271,6 +272,8 @@
   function esc(s) {
     return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   }
+  // 1000 ГБ → 1 ТБ (as in the bot)
+  function gbT(n) { return n >= 1000 && n % 1000 === 0 ? n / 1000 + ' ТБ' : n + ' ГБ'; }
   function plural(n, one, few, many) {
     var a = Math.abs(n) % 100, b = a % 10;
     if (a > 10 && a < 20) return many;
@@ -408,13 +411,13 @@
           '<span>Добавим к подписке одним нажатием.</span><button class="btn btn-amber" data-bot="claim">Забрать</button></div>';
       } else if (wh[0] && !spinAt) {
         wheel = '<div class="card hot"><span class="ico" aria-hidden="true">🎰</span><b>Колесо удачи</b>' +
-          '<span>Бесплатная попытка ждёт. Призы — до +7 дней подписки и скидки.</span><button class="btn btn-amber" data-bot="spin">Крутить колесо</button></div>';
+          '<span>Бесплатная попытка ждёт. Призы — до +7 дней подписки и скидки, а без выигрыша — утешительная скидка от 1 до 3%.</span><button class="btn btn-amber" data-bot="spin">Крутить колесо</button></div>';
       } else if (wh[0]) {
         wheel = '<div class="card"><span class="ico" aria-hidden="true">🎰</span><b>Колесо удачи</b>' +
           '<span>Следующая попытка — ' + esc(shortDate(spinAt)) + '.</span></div>';
       } else {
         wheel = '<div class="card"><span class="ico" aria-hidden="true">🎰</span><b>Колесо удачи</b>' +
-          '<span>Раз в неделю для владельцев подписки — до +7 дней бесплатно.</span></div>';
+          '<span>Раз в неделю для владельцев подписки — до +7 дней бесплатно. Даже без выигрыша — скидка от 1 до 3%.</span></div>';
       }
     }
     var srvFresh = data.sa && now - data.sa < 45 * 60; // the status is shown only while it is recent
@@ -424,7 +427,7 @@
     if (s) {
       facts = '<dl class="facts">' +
         '<div><dt>Тариф</dt><dd>' + esc(s.t ? 'Пробный период' : s.p || '—') + '</dd></div>' +
-        '<div><dt>Трафик</dt><dd>' + (s.g > 0 ? esc(s.g) + ' ГБ на весь срок' : 'без ограничений') + '</dd></div>' +
+        '<div><dt>Трафик</dt><dd>' + (s.g > 0 ? esc(gbT(s.g)) + ' на весь срок' : 'без ограничений') + '</dd></div>' +
         '<div><dt>Устройства</dt><dd>' + (s.d > 0 ? 'до ' + esc(s.d) : 'без ограничений') + '</dd></div>' +
         '</dl>';
     }
@@ -462,39 +465,46 @@
   var giftMode = false;
   var openPlan = null;
   function renderPlans() {
-    var all = (data.pl || []).map(function (p) { return { id: p[0], name: p[1], days: p[2], price: p[3], gb: p[4], dev: p[5], fam: p[6] === 1 }; });
+    var all = (data.pl || []).map(function (p) { return { id: p[0], name: p[1], days: p[2], price: p[3], gb: p[4], dev: p[5], fam: p[6] === 1, rub: p[7] === 1 }; });
     var dc = !giftMode && data.dc && data.dc[1] > Date.now() / 1000 ? { pct: data.dc[0], until: data.dc[1] } : null;
     var price = function (p) { return dc ? Math.max(1, Math.round(p.price * (100 - dc.pct) / 100)) : p.price; };
+    var sym = function (p) { return p.rub ? ' ₽' : ' ⭐'; };
+    var anyRub = all.some(function (p) { return p.rub; });
     var devText = function (n) { return n > 0 ? 'до ' + n + ' ' + plural(n, 'устройства', 'устройств', 'устройств') : 'любое число устройств'; };
+    // the same emoji as on the bot's buttons: 📅 month, ⚡ 3 months, 💎 half a year, 👑 a year
+    var planEmoji = function (d) { return d <= 45 ? '📅' : d <= 120 ? '⚡' : d <= 240 ? '💎' : '👑'; };
     function group(plans, fam) {
       if (!plans.length) return '';
       var bestId = null, bestPer = Infinity;
       plans.forEach(function (p) { var per = p.price / (p.days / 30); if (plans.length > 1 && per < bestPer) { bestPer = per; bestId = p.id; } });
       var same = plans.every(function (p) { return p.gb === plans[0].gb && p.dev === plans[0].dev; });
+      var sameDev = plans.every(function (p) { return p.dev === plans[0].dev; });
       var rows = plans.map(function (p) {
         var months = p.days / 30;
-        var per = months >= 2 ? Math.round(price(p) / months) + ' ⭐ в месяц' : '';
+        var per = months >= 2 ? Math.round(price(p) / months) + sym(p) + ' в месяц' : '';
         var sub = [fam ? p.name.replace(/^Семья · /, '') : p.name];
         if (per) sub.push(per);
-        if (!same) sub.push((p.gb > 0 ? p.gb + ' ГБ' : 'без лимита') + ', ' + (p.dev > 0 ? 'до ' + p.dev + ' устр.' : 'устройств без лимита'));
+        if (!same) sub.push((p.gb > 0 ? gbT(p.gb) : 'без лимита') + (sameDev ? '' : ', ' + (p.dev > 0 ? 'до ' + p.dev + ' устр.' : 'устройств без лимита')));
         var isOpen = openPlan === p.id;
         return '<li class="' + (isOpen ? 'open' : '') + '">' +
           '<button class="plan" data-plan="' + esc(p.id) + '" aria-expanded="' + isOpen + '">' +
-            '<span class="term">' + esc(p.days) + ' ' + plural(p.days, 'день', 'дня', 'дней') + '</span>' +
-            '<span class="price">' + (dc ? '<s>' + esc(p.price) + ' ⭐</s>' : '') + esc(price(p)) + ' ⭐</span>' +
+            '<span class="term"><span class="pe" aria-hidden="true">' + planEmoji(p.days) + '</span>' + esc(p.days) + ' ' + plural(p.days, 'день', 'дня', 'дней') + '</span>' +
+            '<span class="price">' + (dc ? '<s>' + esc(p.price) + sym(p) + '</s>' : '') + esc(price(p)) + sym(p) + '</span>' +
             '<span class="sub">' + esc(sub.join(', ')) + (p.id === bestId ? '<span class="best">Выгоднее всего</span>' : '') + '</span>' +
           '</button>' +
           '<div class="buy"><div>' +
-            '<button class="btn ' + (giftMode ? 'btn-amber' : 'btn-primary') + '" data-bot="' + (giftMode ? 'gplan_' : 'plan_') + esc(p.id) + '">' +
-              (giftMode ? 'Подарить за ' : 'Оплатить ') + esc(price(p)) + ' ⭐</button>' +
+            '<button class="btn ' + (giftMode ? 'btn-amber' : 'btn-primary') + '" data-bot="' + (giftMode ? 'g' : '') + (p.rub ? 'rplan_' : 'plan_') + esc(p.id) + '">' +
+              (giftMode ? 'Подарить за ' : p.rub ? 'Оплатить картой / СБП — ' : 'Оплатить ') + esc(price(p)) + sym(p) + '</button>' +
+            (p.rub ? '<button class="btn btn-ghost" style="margin-top:8px;min-height:44px" data-bot="' + (giftMode ? 'gplan_' : 'plan_') + esc(p.id) + '">Или звёздами Telegram</button>' : '') +
           '</div></div>' +
         '</li>';
       }).join('');
       var inc = same
-        ? (fam ? 'До ' + devText(plans[0].dev).replace(/^до /, '') + ' и ' + (plans[0].gb > 0 ? plans[0].gb + ' ГБ трафика' : 'безлимитный трафик') +
+        ? (fam ? 'До ' + devText(plans[0].dev).replace(/^до /, '') + ' и ' + (plans[0].gb > 0 ? gbT(plans[0].gb) + ' трафика' : 'безлимитный трафик') +
             '. Одна подписка на всех — отправьте ссылку близким или покажите QR-код.'
-          : 'В каждом тарифе ' + (plans[0].gb > 0 ? plans[0].gb + ' ГБ трафика на весь срок' : 'трафик без ограничений') + ' и ' + devText(plans[0].dev) + '.')
-        : (fam ? 'Одна подписка на всех — отправьте ссылку близким или покажите QR-код.' : '');
+          : 'В каждом тарифе ' + (plans[0].gb > 0 ? gbT(plans[0].gb) + ' трафика на весь срок' : 'трафик без ограничений') + ' и ' + devText(plans[0].dev) + '.')
+        : (fam ? 'Одна подписка на всех — отправьте ссылку близким или покажите QR-код.'
+          : 'Трафик — на весь срок тарифа' + (sameDev ? ', в каждом — ' + devText(plans[0].dev) : '') + '. Чем дольше срок, тем больше гигабайт.');
       return (both ? '<h3 class="grp' + (fam ? ' fam' : '') + '">' + (fam ? 'Для всей семьи' : 'Личная подписка') + '</h3>' : '') +
         (inc ? '<p class="muted small">' + inc + '</p>' : '') +
         '<ul class="plans' + (fam ? ' fam' : '') + '">' + rows + '</ul>';
@@ -515,7 +525,7 @@
                   : (data.s && data.s.a ? 'Дни и трафик прибавятся к текущей подписке, ссылка останется прежней.' +
                       (both ? ' При переходе между личной и семейной подпиской оставшиеся дни пересчитаются по стоимости.' : '')
                     : 'Ссылка подписки придёт в чат сразу после оплаты.')) +
-        ' Оплата звёздами Telegram в чате с ботом.</p>';
+        (anyRub ? ' Оплата картой или по СБП (можно и звёздами Telegram) — в чате с ботом.</p>' : ' Оплата звёздами Telegram в чате с ботом.</p>');
   }
 
   // ---------- friends ----------
